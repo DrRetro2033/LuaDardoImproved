@@ -21,6 +21,7 @@ import '../vm/instruction.dart';
 import '../vm/opcodes.dart';
 import 'arithmetic.dart';
 import 'comparison.dart';
+import 'lua_exception.dart';
 import 'lua_stack.dart';
 import 'lua_table.dart';
 import 'lua_value.dart';
@@ -803,8 +804,38 @@ class LuaStateImpl implements LuaState, LuaVM {
 
   @override
   int error() {
-    Object? err = _stack!.pop();
-    throw Exception(err.toString()); // TODO
+    final Object? err = _stack!.pop();
+    final String msg = err?.toString() ?? "error";
+    // Build a Lua-like traceback. Keep it simple and useful:
+    final String traceback = _buildLuaTraceback(msg);
+    throw LuaRuntimeException(traceback);
+  }
+
+  // helper to create a Lua-style traceback string.
+  // You should adapt the internals to iterate real VM call frames (closures/protos).
+  String _buildLuaTraceback(String msg) {
+    final buf = StringBuffer();
+    buf.writeln(msg);
+    buf.writeln("stack traceback:");
+    // Try to walk the Lua stacks/frames to give file:line: in function 'name' entries.
+    // The exact fields below (closure.proto.source, proto.lineDefined, proto.name)
+    // depend on the repository's Prototype/Closure shape — adjust as needed.
+    LuaStack? s = _stack;
+    while (s != null) {
+      final c = s.closure;
+      if (c != null) {
+        if (c.proto != null) {
+          final src = c.proto!.source ?? "<unknown>";
+          final line = c.proto!.lineDefined ?? 0;
+          final fname = c.proto!.source ?? "<anonymous>";
+          buf.writeln("\t$src:$line: in function '$fname'");
+        } else {
+          buf.writeln("\t[DART CLOSURE] ${c.dartFunc}");
+        }
+      }
+      s = s.prev;
+    }
+    return buf.toString();
   }
 
   @override
@@ -1015,7 +1046,7 @@ class LuaStateImpl implements LuaState, LuaVM {
 
   @override
   ThreadStatus loadString(String s) {
-    return load(utf8.encode(s) as Uint8List, s, "bt");
+    return load(utf8.encode(s), s, "bt");
   }
 
   @override
@@ -1031,7 +1062,7 @@ class LuaStateImpl implements LuaState, LuaVM {
 
   @override
   Future<void> openLibs() async {
-  Map<String, DartFunctionAsync> libs = <String, DartFunctionAsync>{
+    Map<String, DartFunctionAsync> libs = <String, DartFunctionAsync>{
       "_G": BasicLib.openBaseLib,
       "package": PackageLib.openPackageLib,
       "table": TableLib.openTableLib,

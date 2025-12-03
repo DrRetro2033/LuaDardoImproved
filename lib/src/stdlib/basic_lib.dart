@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import '../api/lua_state.dart';
 import '../api/lua_type.dart';
 
 class BasicLib {
   static Map<String, DartFunctionAsync?> _baseFuncs = {
-    "print":  _basePrint,
+    "print": _basePrint,
     "assert": _baseAssert,
     "error": _baseError,
     "select": _baseSelect,
@@ -42,8 +41,6 @@ class BasicLib {
   static Future<int> openBaseLib(LuaState ls) async {
     /* open lib into global table */
     ls.pushGlobalTable();
-
-
 
     await ls.setFuncsAsync(_baseFuncs, 0);
     /* set global _G */
@@ -154,7 +151,8 @@ class BasicLib {
     ls.checkAny(1);
     if (await ls.getMetafield(1, "__pairs") == LuaType.luaNil) {
       /* no metamethod? */
-      ls.pushDartFunction(toAsyncFunction(_baseNext)); /* will return generator, */
+      ls.pushDartFunction(
+          toAsyncFunction(_baseNext)); /* will return generator, */
       ls.pushValue(1); /* state, */
       ls.pushNil();
     } else {
@@ -188,7 +186,7 @@ class BasicLib {
     if (chunk != null) {
       /* loading a string? */
       var chunkName = ls.optString(2, chunk);
-      ThreadStatus status = ls.load(utf8.encode(chunk) as Uint8List, chunkName!, mode);
+      ThreadStatus status = ls.load(utf8.encode(chunk), chunkName!, mode);
       return loadAux(ls, status, env);
     } else {
       /* loading from a reader function */
